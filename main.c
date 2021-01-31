@@ -12,7 +12,7 @@
 #define PIN_LedYellow 2 //output gas type LPG
 #define PIN_LedGreen 3 //output gas type smoke
 
-#define PIN_MQ_2 4 //get value from MQ-2 sensor **DAC** PA4 
+#define PIN_MQ_2 4 //get value from MQ-2 sensor **ADC** PA4 
 
 #define GAS_LPG 0
 #define GAS_CO 1
@@ -60,15 +60,28 @@ void GPIO_config()
 	LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA);
 	LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOB);
 	LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOC);
+	LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_ADC1);
 	
 	LL_GPIO_InitTypeDef(MQ_2);
-	MQ_2.Mode = LL_GPIO_MODE_OUTPUT;
+	MQ_2.Mode = LL_GPIO_MODE_OUTPUT; //7_seg config
 	MQ_2.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
 	MQ_2.Pull = LL_GPIO_PULL_NO;
 	MQ_2.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+	MQ_2.Pin = LL_GPIO_PIN_4 | LL_GPIO_PIN_7 | LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15;
+	LL_GPIO_Init(GPIOB,&MQ_2);
 	
-	MQ_2.Mode = LL_GPIO_MODE_ANALOG;
-
+	MQ_2.Pin =LL_GPIO_PIN_0 | LL_GPIO_PIN_1 | LL_GPIO_PIN_2 | LL_GPIO_PIN_3 ;
+	LL_GPIO_Init(GPIOC,&MQ_2);
+	
+	MQ_2.Mode = LL_GPIO_MODE_ANALOG; //ADC config
+	MQ_2.Pin = LL_GPIO_PIN_4;
+	ADC1->CR1 &=~(3<<24);
+	ADC1->CR1 |=(1<<11);
+	ADC1->CR1 &= ~(7<<13); 
+	ADC1->CR2 &= ~(1<<11); 
+	ADC1->SMPR3 |= (2<<12);
+	ADC1->SQR5 |=(4<<0); 
+	ADC1->CR2 |=(1<<0);
 	LL_GPIO_Init(GPIOA,&MQ_2);
 }
 
