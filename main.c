@@ -8,15 +8,9 @@
 #include "stm32l1xx_ll_tim.h"
 #include "math.h"
 
-#define PIN_LedRed 1 //output gas type CO
-#define PIN_LedYellow 2 //output gas type LPG
-#define PIN_LedGreen 3 //output gas type smoke
-
 #define PIN_MQ_2 4 //get value from MQ-2 sensor **ADC** PA4 
-
-#define GAS_LPG 0
-#define GAS_CO 1
-#define GAS_SMOKE 2
+#define Max_Bit_ADC 2024 
+#define Max_Volt 4.45
 
 //For playing sound
 #define E_O6					(uint16_t)1318
@@ -26,22 +20,9 @@
 /*Macro function for ARR calculation*/
 #define ARR_CALCULATE(N) ((32000000) / ((TIMx_PSC) * (N)))
 
-//factory declare //
-int RL_VALUE=5;   //define the load resistance on the board, in kilo ohms
-float RO_CLEAN_AIR_FACTOR=9.83;  //RO_CLEAR_AIR_FACTOR=(Sensor resistance in clean air)/RO
-int CALIBARAION_SAMPLE_TIMES=50;  //define how many samples you are going to take in the calibration phase
-int CALIBRATION_SAMPLE_INTERVAL=500; //define the time interal(in milisecond) between each samples in the
-int READ_SAMPLE_INTERVAL=50; //define how many samples you are going to take in normal operation
-int READ_SAMPLE_TIMES=5;  //define the time interal(in milisecond) between each samples in 
-
-float LPGCurve[3] = {2.3,0.21,-0.47};
-float COCurve[3] = {2.3,0.72,-0.34};
-float SmokeCurve[3] = {2.3,0.53,-0.44};
-float Ro = 10.0; //R value from MQ-2 sensor
-//*************************************************************************//
 float test_adc=0;
-float rs=0;
-long ippm_gas[3]={0}; //get ippm index 0 =LPG, 1 =CO, 2 =smoke
+float VoltADC =0;
+float PerVolt =0;
 
 //for 7 seg
 uint8_t digit_value[4] = {0};
@@ -60,46 +41,40 @@ uint32_t num_to_seg[10] = {LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_
 uint32_t digit[4] = {LL_GPIO_PIN_0, LL_GPIO_PIN_1, LL_GPIO_PIN_2, LL_GPIO_PIN_3};
 
 void GPIO_config(void);
-float MQResistCal(int);
-float MQCalibration(void);
-long MQGetGasPercentage(float rs_ro_ratio, int gas_id);
-long  MQGetPercentage(float rs_ro_ratio, float *pcurve);
-float MQRead(void);
+
 int Get_ADC();
+float calVolt(int);
+float calPerVolt(float);
 
 //play note function
 void TIM_BASE_Config(uint16_t);
 void TIM_OC_GPIO_Config(void);
-void TIM_OC_Config(uint16_t);
+void TIM_OC_Config(void);
 void TIM_BASE_DurationConfig(void);
-void PlayAlarm(int);
+void PlayAlarm(float);
 
 //display 7-seg
-void display_7_seg(int);
+void display_7_seg(float);
 
 void SystemClock_Config(void);
+
+uint16_t a = 0;
+uint8_t o = 34;
 int main()
 {
-	SystemClock_Config();
+ 	SystemClock_Config();
 	GPIO_config();
-	TIM_OC_Config(ARR_CALCULATE(E_O6));
+	TIM_OC_Config();
 	TIM_BASE_DurationConfig();
-	
-	Ro = MQCalibration();
 	
 	while(1)
 	{
-		ippm_gas[0] = MQGetGasPercentage(MQRead()/Ro,GAS_LPG);;
-		ippm_gas[1] = MQGetGasPercentage(MQRead()/Ro,GAS_CO);
-		ippm_gas[2] = MQGetGasPercentage(MQRead()/Ro,GAS_SMOKE);
-		
-		for(int i=0;i<3;i++)
-		{
-			display_7_seg(ippm_gas[i]);
-			PlayAlarm(ippm_gas[i]);
-			LL_mDelay(10);
-		}
-		
+		test_adc = Get_ADC();
+		VoltADC = calVolt(test_adc);
+		PerVolt = calPerVolt(VoltADC);
+		display_7_seg(PerVolt);
+		PlayAlarm(PerVolt);
+		LL_mDelay(50);
 	}
 }
 
@@ -131,7 +106,7 @@ void GPIO_config()
 	
 	RCC->APB2ENR|= (1<<9); 
 	RCC->CR |= (1<<0); 
-	while(((RCC->CR & 0x02)>>1) ==1);
+	while(((RCC->CR & 0x02)>>1) ==0);
 	ADC1->CR1 &= ~(3<<24);
 	ADC1->CR1 |= (1<<11); 
 	ADC1->CR1 &= ~(7<<13); 
@@ -140,19 +115,23 @@ void GPIO_config()
 	ADC1->SQR5 |=(4<<0); 
 	ADC1->CR2 |=(1<<0); 
 	
-	//config tim
-	MQ_2.Mode = LL_GPIO_MODE_ALTERNATE; //Pin B6
-	MQ_2.Alternate = LL_GPIO_AF_2;
-	MQ_2.Pin = LL_GPIO_PIN_6;
-	LL_GPIO_Init(GPIOB, &MQ_2);
+	//config sound
+	LL_GPIO_InitTypeDef gpio_initstructure;
+	gpio_initstructure.Mode = LL_GPIO_MODE_ALTERNATE;
+	gpio_initstructure.Alternate = LL_GPIO_AF_2;
+	gpio_initstructure.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+	gpio_initstructure.Pin = LL_GPIO_PIN_6;
+	gpio_initstructure.Pull = LL_GPIO_PULL_NO;
+	gpio_initstructure.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+	LL_GPIO_Init(GPIOB, &gpio_initstructure);
 }
 
-void display_7_seg(int gas)
+void display_7_seg(float gas)
 {
-	digit_value[0] = gas/1000;
-	digit_value[1] = (gas/100) % 10;
-	digit_value[2] = (gas%100) / 10;
-	digit_value[3] = gas % 10;
+	digit_value[0] = (int)gas/1000;
+	digit_value[1] = ((int)gas/100) % 10;
+	digit_value[2] = ((int)gas%100) / 10;
+	digit_value[3] = (int)gas % 10;
 			
 	for(int i = 0; i < 4; ++i)
 	{
@@ -173,56 +152,14 @@ int Get_ADC()
 }
 
 
-float MQResistCal(int raw_data)
+float calVolt(int rawADC)
 {
-	return ( ((float)RL_VALUE*(1023-raw_data)/raw_data));
+	return(rawADC*Max_Volt/Max_Bit_ADC);
 }
-
-float MQCalibration() //under dev
-{
-  int i;
-  float val=0;
-
-  for (i=0;i<CALIBARAION_SAMPLE_TIMES;i++) {            //take multiple samples
-    val += MQResistCal(Get_ADC());
-   // LL_mDelay(500);
-  }
-  val = val/CALIBARAION_SAMPLE_TIMES;                   //calculate the average value
-  val = val/RO_CLEAN_AIR_FACTOR;                        //divided by RO_CLEAN_AIR_FACTOR yields the Ro                                        
-  return val;                                           //according to the chart in the datasheet 
-
-}
-
-float MQRead() //under dev
-{
-	 int i;
-  
- 
-  for (i=0;i<READ_SAMPLE_TIMES;i++) {
-    rs += MQResistCal(Get_ADC());
-	//	LL_mDelay(50);
-  }
- 
-  rs = rs/READ_SAMPLE_TIMES;
- 
-  return rs;  
-}
-
-long MQGetGasPercentage(float rs_ro_ratio, int gas_id)
-{
-	if ( gas_id == GAS_LPG ) {
-     return MQGetPercentage(rs_ro_ratio,LPGCurve);
-  } else if ( gas_id == GAS_CO ) {
-     return MQGetPercentage(rs_ro_ratio,COCurve);
-  } else if ( gas_id == GAS_SMOKE ) {
-     return MQGetPercentage(rs_ro_ratio,SmokeCurve);
-  }    
-}
-
-long  MQGetPercentage(float rs_ro_ratio, float *pcurve)
-{
 	
-  return (pow(10,( ((log(rs_ro_ratio)-pcurve[1])/pcurve[2]) + pcurve[0])));
+float calPerVolt(float Voltage)
+{
+	return(Voltage*100/Max_Volt);
 }
 
 void TIM_BASE_DurationConfig(void)
@@ -233,7 +170,7 @@ void TIM_BASE_DurationConfig(void)
 	//Time-base configure
 	timbase_initstructure.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
 	timbase_initstructure.CounterMode = LL_TIM_COUNTERMODE_UP;
-	timbase_initstructure.Autoreload = 3000 - 1;
+	timbase_initstructure.Autoreload = 1000 - 1;
 	timbase_initstructure.Prescaler =  32000 - 1;
 	LL_TIM_Init(TIM2, &timbase_initstructure);
 	
@@ -256,11 +193,12 @@ void TIM_BASE_Config(uint16_t ARR)
 	LL_TIM_EnableCounter(TIM4); 
 }
 
-void TIM_OC_Config(uint16_t note)
+void TIM_OC_Config(void)
 {
 	LL_TIM_OC_InitTypeDef tim_oc_initstructure;
 	
-	TIM_BASE_Config(note);
+	//TIM_OC_GPIO_Config();
+	TIM_BASE_Config(ARR_CALCULATE(E_O6));
 	
 	tim_oc_initstructure.OCState = LL_TIM_OCSTATE_DISABLE;
 	tim_oc_initstructure.OCMode = LL_TIM_OCMODE_PWM1;
@@ -285,11 +223,33 @@ void TIM4_IRQHandler(void)
 	}
 }
 
-void PlayAlarm(int gas){
-	if(gas > 300)
-	LL_TIM_ClearFlag_UPDATE(TIM2);
-	LL_TIM_SetAutoReload(TIM4, MUTE); //Change ARR of Timer PWM
-	LL_TIM_SetCounter(TIM2, 0);
+void PlayAlarm(float PerGas)
+{
+	if(PerGas > 33)
+	{ // alarm gas over 33% 
+		if(LL_TIM_IsActiveFlag_UPDATE(TIM2) == SET)
+		{
+			LL_TIM_ClearFlag_UPDATE(TIM2);
+			LL_TIM_SetAutoReload(TIM4,E_O6); //Change ARR of Timer PWM
+			LL_mDelay(1000);
+			LL_TIM_SetAutoReload(TIM4,0);
+			LL_mDelay(1000);
+			LL_TIM_SetAutoReload(TIM4,3000);
+			LL_mDelay(1000);
+			LL_TIM_OC_SetCompareCH1(TIM4,LL_TIM_GetAutoReload(TIM4)/2);
+			LL_TIM_SetCounter(TIM2, 0); 
+		}
+	}
+	else
+	{
+		if(LL_TIM_IsActiveFlag_UPDATE(TIM2) == SET)
+		{
+			LL_TIM_ClearFlag_UPDATE(TIM2);
+			LL_TIM_SetAutoReload(TIM4,0); //Change ARR of Timer PWM
+			LL_TIM_OC_SetCompareCH1(TIM4,LL_TIM_GetAutoReload(TIM4)/2);
+			LL_TIM_SetCounter(TIM2, 0); 
+		}
+	}
 }
 
 void SystemClock_Config(void)
