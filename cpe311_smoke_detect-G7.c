@@ -9,7 +9,9 @@
 #include "math.h"
 
 #define PIN_MQ_2 4 //get value from MQ-2 sensor **ADC** PA4
-#define Max_Bit_ADC 2024
+#define Max_Bit_ADC 1024
+
+
 #define Max_Volt 4.45
 
 //For playing sound
@@ -26,16 +28,16 @@ float PerVolt =0;
 
 //for 7 seg
 uint8_t digit_value[4] = {0};
-uint32_t num_to_seg[10] = {LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14,			//0
+uint32_t num_to_seg[10] = {LL_GPIO_PIN_3 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14,			//0
 			LL_GPIO_PIN_10 | LL_GPIO_PIN_11,											//1
-			LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_15,					//2
-			LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_15,					//3
+			LL_GPIO_PIN_3 | LL_GPIO_PIN_10 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_15,					//2
+			LL_GPIO_PIN_3 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_15,					//3
 			LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15,													//4
-			LL_GPIO_PIN_2 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15,					//5
-			LL_GPIO_PIN_2 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15, 			//6
-			LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11,																						//7
-			LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15, 	//8
-			LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15			//9
+			LL_GPIO_PIN_3 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15,					//5
+			LL_GPIO_PIN_3 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15, 			//6
+			LL_GPIO_PIN_3 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11,																						//7
+			LL_GPIO_PIN_3 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15, 	//8
+			LL_GPIO_PIN_3 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15			//9
 			};
 
 uint32_t digit[4] = {LL_GPIO_PIN_0, LL_GPIO_PIN_1, LL_GPIO_PIN_2, LL_GPIO_PIN_3};
@@ -72,7 +74,7 @@ int main()
 		PerVolt = calPerVolt(VoltADC);
 		display_7_seg(PerVolt);
 		PlayAlarm(PerVolt);
-		LL_mDelay(50);
+		LL_mDelay(5);
 	}
 }
 
@@ -88,14 +90,11 @@ void GPIO_config()
 	MQ_2.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
 	MQ_2.Pull = LL_GPIO_PULL_NO;
 	MQ_2.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
-	MQ_2.Pin = LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15;
+	MQ_2.Pin = LL_GPIO_PIN_3 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15;
 	LL_GPIO_Init(GPIOB,&MQ_2);
 
 	MQ_2.Pin =LL_GPIO_PIN_0 | LL_GPIO_PIN_1 | LL_GPIO_PIN_2 | LL_GPIO_PIN_3;
 	LL_GPIO_Init(GPIOC,&MQ_2);
-
-	MQ_2.Pin =LL_GPIO_PIN_5; //for "."
-	LL_GPIO_Init(GPIOA,&MQ_2);
 
 	//ADC config
 	MQ_2.Mode = LL_GPIO_MODE_ALTERNATE;
@@ -135,7 +134,7 @@ void display_7_seg(float gas)
 	{
 		LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_5);
 		LL_GPIO_ResetOutputPin(GPIOC, LL_GPIO_PIN_0 | LL_GPIO_PIN_1 | LL_GPIO_PIN_2 | LL_GPIO_PIN_3);
-		LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15);
+		LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_3 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15);
 		LL_GPIO_SetOutputPin(GPIOB, num_to_seg[digit_value[i]]);
 		LL_GPIO_SetOutputPin(GPIOC, digit[i]);
 		LL_mDelay(1);
@@ -228,12 +227,12 @@ void PlayAlarm(float PerGas)
 		if(LL_TIM_IsActiveFlag_UPDATE(TIM2) == SET)
 		{
 			LL_TIM_ClearFlag_UPDATE(TIM2);
-			LL_TIM_SetAutoReload(TIM4,E_O6); //Change ARR of Timer PWM
-			LL_mDelay(1000);
+			LL_TIM_SetAutoReload(TIM4,3000); //Change ARR of Timer PWM
+			/*LL_mDelay(500);
 			LL_TIM_SetAutoReload(TIM4,0);
-			LL_mDelay(1000);
+			LL_mDelay(500);
 			LL_TIM_SetAutoReload(TIM4,3000);
-			LL_mDelay(1000);
+			LL_mDelay(500);*/
 			LL_TIM_OC_SetCompareCH1(TIM4,LL_TIM_GetAutoReload(TIM4)/2);
 			LL_TIM_SetCounter(TIM2, 0);
 		}
